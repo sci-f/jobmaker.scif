@@ -5,4 +5,4 @@ clean:
 
 build: clean
 	singularity create --size 2000 pokemon.img
-	sudo singularity bootstrap runjob.img Singularity
+	sudo singularity bootstrap pokemon.img Singularity
