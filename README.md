@@ -9,11 +9,14 @@ printing of 500 pokemon) to be run in different contexts:
  - run with custom variables (fortune)
  - run in a different context (eg, a color filter)
 
-[![asciicast](https://asciinema.org/a/137743.png)](https://asciinema.org/a/137743)
-
 The general idea is that a main function can be provided in different contexts, or with
 different (optional) modular contexts for the user. For each context or helper, there
 is a custom set of environment, or labels, along with commands and metadata.
+
+
+[![asciicast](https://asciinema.org/a/137743.png)](https://asciinema.org/a/137743?speed=3)
+
+For an interactive example, watch the asciinema above.
 
 ## Building the image
 Let's first build the container. You can use the Makefile to build the image:
