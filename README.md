@@ -1,37 +1,34 @@
-# JobMaker FTW
+# JobMaker Scientific Filesystem
 
 This is an example container to provide an executable (in this case, a fun
-printing of 500 pokemon) to be run in different contexts:
+printing of pokemon) to be run in different contexts:
 
- - on a slurm cluster
- - on an sge cluster
- - locally
  - run with custom variables (fortune)
  - run in a different context (eg, a color filter)
+ - run on a slurm cluster
+ - run on an sge cluster
+ - run locally
 
-The general idea is that a main function can be provided in different contexts, or with
-different (optional) modular contexts for the user. For each context or helper, there
-is a custom set of environment, or labels, along with commands and metadata.
+The general idea is that a main function (the pokemon executable) can be 
+provided in different contexts, or with different (optional) modular 
+contexts for the user. For each context or helper, there
+is a custom set of environment, or labels, along with commands and metadata. If
+you want to skip the science part and just play with Pokemon, there is a [separate
+set of containers](https://vsoch.github.io/2018/pokemon/) (Docker and Singularity) for that.
 
-
-[![asciicast](https://asciinema.org/a/137743.png)](https://asciinema.org/a/137743?speed=3)
-
-For an interactive example, watch the asciinema above.
 
 ## Building the image
 Let's first build the container. You can use the Makefile to build the image:
 
 ```
 make
-
 # Does make clean followed by make build
 ```
 
 or manually:
 
 ```
-singularity create pokemon.img
-sudo singularity bootstrap pokemon.img Singularity
+sudo singularity build jobmaker Singularity
 ```
 
 ## Running the Image
@@ -39,130 +36,179 @@ sudo singularity bootstrap pokemon.img Singularity
 And now run it. This should perform the container's main function, calling it's runscript:
 
 ```
-singularity run pokemon.img 
+./jobmaker
 ```
 
-Works great! But then what if we wanted to know what tools (SCI-F apps) come with the
-container? That's easy to do:
+You will see an army of Pokemon ascii print to the screen. Works great! But now we want to capture metrics about this primary function. First we would want to know what tools (SCIF apps) come with the
+container. That's easy to do:
 
 ```
-singularity apps pokemon.img
-catch
-colors
-fortune
-pokemon
-sge
-slurm
+./jobmaker apps
+     catch
+    colors
+   fortune
+      main
+       sge
+     slurm
 ```
 
-or ask the container for help:
+
+We can ask for help for the container, this is Singularity specific.
 
 ```
-singularity help pokemon.img
+singularity help jobmaker 
 
-This is an example for a container that on generation, calculates the runtime
-for the runscript, and then writes a job file fitting to it. We also
-provide several wrappers (colors, fortune) for customizing the runscript.
+This is an example for a container with a Scientific Filesystem
+that on generation, calculates the runtime for the runscript, 
+and then writes a job file fitting to it. We also provide 
+several wrappers (colors, fortune) for customizing the runscript.
 Given that metrics for running time and memory are being calculated where
 the container is built, we assume that the build environment resources 
-are comparable to the  running environment. The only requirements for
+are comparable to the running environment. The only requirements for
 the running environments are that singularity is installed.
-Each SCI-F app serves as a different entrypoint to run the container. 
+Each SCIF app serves as a different entrypoint to run the container. 
 
-# Generate on your own
-git clone https://www.github.com/containers-ftw/jobmaker-ftw.git
-cd jobmaker-ftw
-make
+    # Generate on your own
+    git clone https://www.github.com/sci-f/jobmaker.scif
+    cd jobmaker.scif
+    make
 
-# Here is how you can use the container after you build it:
+    # Here is how you can use the container after you build it:
 
-# List all apps
-singularity apps <container>
+    # List all apps
+    ./jobmaker apps
 
-# Run a specific app
-singularity run --app <app> <container>
+    # Run a specific app
+    ./jobmaker run <app>
 
-# Loop over all apps
-for app in $(singularity apps pokemon.img); do
-    singularity run --app $app pokemon.img
-done
+    # Loop over all apps
+    for app in $(./jobmaker apps); do
+      ./jobmaker run $app
+    done
+
 ```
 
 ### Running an application
-First you might want to ask for help
+Remember the list of apps? We don't know what they do. So first you might want to ask for help
 
 ```
-singularity help --app slurm pokemon.img 
+./jobmaker help
+Usage: scif help <hello-world>
+```
+
+```
+./jobmaker help slurm
 This will print (to the console) a slurm submission script
-singularity run --app slurm pokemon.img
-# add your email
-singularity run --app slurm pokemon.img vsochat@stanford.edu
-# save to file:
-singularity run --app slurm pokemon.img >> pokemon.job
-# and then submit
+./jobmaker run slurm
+./jobmaker run slurm vsochat@stanford.edu
+./jobmaker run slurm >> pokemon.job
 sbatch pokemon.job
+```
+
+You can also look at the metadata in detail with inspect
+
+```
+./jobmaker inspect slurm
+
 ```
 
 and then run it!
 
 ```
+./jobmaker run slurm
+[slurm] executing /bin/bash /scif/apps/slurm/scif/runscript
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH -p normal
 #SBATCH --qos=normal
-#SBATCH --mem=21
+#SBATCH --mem=16
 #SBATCH --job-name=pokemon.job
 #SBATCH --error=%j.err
 #SBATCH --output=%j.out
 #SBATCH --mail-type=ALL
-#SBATCH --time=0:01.10
+#SBATCH --time=0:00.82
 module load singularity
-singularity run /home/vanessa/Desktop/jobmaker-ftw/pokemon.img
+singularity run /scif/apps/main/jobmaker
 # example: run the job script command line:
 # sbatch pokemon.job
 ```
 
+The reason this works is because the slurm application sources environment variables for memory and time needed that were calculated when the container was built. Since this is a job, we can pipe the output easily into a file, and we will add `--quiet` to suppress the first information line.
+
+```
+./jobmaker --quiet run slurm >> myjob.job
+```
 
 ## Advanced
-What variables are exposed to each app at runtime?
+What variables are exposed to each app at runtime? Let's look at the environment of the active application (e.g., slurm) when it's running. We will split this into two pieces to show the "general active application" environment, followed by the named application environment (that is also defined for apps that aren't active!)
 
 ```
-singularity exec --app fortune  pokemon.img env | grep SINGULARITY
-SINGULARITY_APPOUTPUT=/scif/data/fortune/output
-SINGULARITY_APPDATA=/scif/data/fortune
-SINGULARITY_APPBASE=/scif/apps/fortune
-SINGULARITY_APPINPUT=/scif/data/fortune/input
-SINGULARITY_APPROOT=/scif/apps/fortune
-SINGULARITY_APPNAME=fortune
-SINGULARITY_CONTAINER=pokemon.img
-SINGULARITY_APPMETA=/scif/apps/fortune/scif
-SINGULARITY_NAME=pokemon.img
+./jobmaker exec slurm env | grep slurm
+[slurm] executing /usr/bin/env 
+SCIF_APPDATA=/scif/data/slurm
+SCIF_APPRUN=/scif/apps/slurm/scif/runscript
+SCIF_APPRECIPE=/scif/apps/slurm/scif/slurm.scif
+SCIF_APPNAME_slurm=slurm
+SCIF_APPROOT=/scif/apps/slurm
+SCIF_APPNAME=slurm
+SCIF_APPLIB=/scif/apps/slurm/lib
+SCIF_APPMETA=/scif/apps/slurm/scif
+SCIF_APPBIN=/scif/apps/slurm/bin
+SCIF_APPHELP=/scif/apps/slurm/scif/runscript.help
+SCIF_APPTEST=/scif/apps/slurm/scif/test.sh
+SCIF_APPENV=/scif/apps/slurm/scif/environment.sh
+```
+```
+SCIF_APPLIB_slurm=/scif/apps/slurm/lib
+SCIF_APPMETA_slurm=/scif/apps/slurm/scif
+SCIF_APPBIN_slurm=/scif/apps/slurm/bin
+SCIF_APPHELP_slurm=/scif/apps/slurm/scif/runscript.help
+SCIF_APPENV_slurm=/scif/apps/slurm/scif/environment.sh
+SCIF_APPLABELS_slurm=/scif/apps/slurm/scif/labels.json
+SCIF_APPTEST_slurm=/scif/apps/slurm/scif/test.sh
+SCIF_APPDATA_slurm=/scif/data/slurm
+SCIF_APPRUN_slurm=/scif/apps/slurm/scif/runscript
+SCIF_APPLABELS=/scif/apps/slurm/scif/labels.json
+SCIF_APPRECIPE_slurm=/scif/apps/slurm/scif/slurm.scif
+SCIF_APPROOT_slurm=/scif/apps/slurm
+```
+Importantly, notice that the bin and lib are added to their respective paths, to be found!
+
+```
+LD_LIBRARY_PATH=/scif/apps/slurm/lib:/.singularity.d/libs
+PWD=/scif/apps/slurm
+PATH=/scif/apps/slurm/bin:/opt/conda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ```
 
-What about the entire container (not just for singularity)
+And guess what? Even when slurm is running (and other apps like sge are sleeping) we can still find the other apps! Let's look for sge (when slurm is running):
 
 ```
-singularity exec --containall --app slurm  pokemon.img env
-
-SINGULARITY_APPOUTPUT=/scif/data/slurm/output
-PYTHON_PIP_VERSION=8.1.2
-LD_LIBRARY_PATH=/scif/apps/slurm/lib::/.singularity.d/libs
-HOME=/home/vanessa
-PS1=Singularity> 
-TERM=xterm-256color
-SINGULARITY_APPDATA=/scif/data/slurm
-PATH=/scif/apps/slurm/bin:/scif/apps/slurm:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-SINGULARITY_APPBASE=/scif/apps/slurm
-SINGULARITY_APPINPUT=/scif/data/slurm/input
-SINGULARITY_APPROOT=/scif/apps/slurm
-LANG=C.UTF-8
-TIME_HMS=0:01.10
-DEBIAN_FRONTEND=noninteractive
-SINGULARITY_APPNAME=slurm
-PYTHON_VERSION=3.5.1
-MEMORY_KB=21668
-SINGULARITY_CONTAINER=pokemon.img
-PWD=/home/vanessa
-SINGULARITY_APPMETA=/scif/apps/slurm/scif
-SINGULARITY_NAME=pokemon.img
+./jobmaker exec slurm env | grep sge
+SCIF_APPHELP_sge=/scif/apps/sge/scif/runscript.help
+SCIF_APPENV_sge=/scif/apps/sge/scif/environment.sh
+SCIF_APPLABELS_sge=/scif/apps/sge/scif/labels.json
+SCIF_APPTEST_sge=/scif/apps/sge/scif/test.sh
+SCIF_APPDATA_sge=/scif/data/sge
+SCIF_APPRUN_sge=/scif/apps/sge/scif/runscript
+SCIF_APPRECIPE_sge=/scif/apps/sge/scif/sge.scif
+SCIF_APPROOT_sge=/scif/apps/sge
+SCIF_APPNAME_sge=sge
+SCIF_APPLIB_sge=/scif/apps/sge/lib
+SCIF_APPMETA_sge=/scif/apps/sge/scif
+SCIF_APPBIN_sge=/scif/apps/sge/bin
 ```
+
+This is why I'm able to quickly execute another app runscript:
+
+```
+exec SCIF_APPRUN_sge
+```
+
+or source an environment
+
+```
+source SCIF_APPENV_sge
+```
+
+without needing to know the path or details. I can also just target the active app, whatever that may be, doing the same without the specified name. For example, let's say I have a script to perform some machine learning task on the main runscript file. It would be located at `SCIF_APPRUN`.
+

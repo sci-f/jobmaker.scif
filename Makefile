@@ -1,8 +1,7 @@
 run: clean build
 
 clean:
-	rm -f pokemon.img
+	rm -f jobmaker
 
 build: clean
-	singularity create --size 2000 pokemon.img
-	sudo singularity bootstrap pokemon.img Singularity
+	sudo singularity build jobmaker Singularity

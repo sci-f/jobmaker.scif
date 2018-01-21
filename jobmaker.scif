@@ -1,0 +1,100 @@
+%apprun main
+    max=10
+    for i in `seq 2 $max`
+    do
+        scif run catch
+    done
+
+%appfiles main
+    /catchemall.sh
+
+%appinstall main
+    apt-get install -y git time lolcat fortune
+    /opt/conda/bin/pip install pokemon
+    # Here we want to calculate different metrics for runtime, etc.
+    TIME="TIME_HMS=%E\nMEMORY_KB=%M"
+    export TIME
+    chmod u+x catchemall.sh
+    /usr/bin/time -o times.txt /bin/bash catchemall.sh
+    IFS=''
+    while read line
+    do
+        echo $line >> $SCIF_APPENV
+    done < times.txt
+    echo "export TIME_HMS MEMORY_KB" >> $SCIF_APPENV
+    echo "export CONTAINER=$PWD/jobmaker" >> $SCIF_APPENV
+
+%apphelp sge
+    This will produce a submission script for sge.
+        ./jobmaker run sge
+    # save to file
+        ./jobmaker run sge >> pokemon.job
+    # add other arguments
+        ./jobmaker run sge -q normal
+    # run job
+        qsub pokemon.job
+
+%apprun sge
+    # Time and memory were calculated and saved to this environment
+    source $SCIF_APPENV_main
+    MEMORY_MB=$(echo "$(( ${MEMORY_KB%% *} / 1024))")
+
+    echo "#!/bin/bash"
+    echo "# run_pokemon.sh"
+    echo "module load singularity"
+    echo "singularity run $CONTAINER"
+    echo "# submission command"
+    QUEUE="-q normal"
+    if [ $# -ne 0 ]
+        then
+        QUEUE=$1
+    fi
+    echo "# qsub $QUEUE -w e -N pokemon.job -l h_vmem=${MEMORY_MB}G -l h_rt=$TIME_HMS -o pokemon.out -e pokemon.err run_pokemon.sh"
+
+
+%apphelp slurm
+    This will print (to the console) a slurm submission script
+        ./jobmaker run slurm
+    # add your email
+        ./jobmaker run slurm vsochat@stanford.edu
+    # save to file:
+        ./jobmaker run slurm >> pokemon.job
+    # and then submit
+    sbatch pokemon.job
+
+%apprun slurm
+    # Time and memory were calculated and saved to this environment
+    source $SCIF_APPENV_main
+
+    MEMORY_MB=$(echo "$(( ${MEMORY_KB%% *} / 1024))")
+    echo "#!/bin/bash"
+    echo "#SBATCH --nodes=1"
+    echo "#SBATCH -p normal"
+    echo "#SBATCH --qos=normal"
+    echo "#SBATCH --mem=$MEMORY_MB"
+    echo "#SBATCH --job-name=pokemon.job"
+    echo "#SBATCH --error=%j.err"
+    echo "#SBATCH --output=%j.out"
+    if [ $# -ne 0 ]
+        then
+        echo "#SBATCH --mail-user=$1"
+    fi
+    echo "#SBATCH --mail-type=ALL"
+    echo "#SBATCH --time=$TIME_HMS"
+    echo "module load singularity"
+    echo "singularity run $CONTAINER"
+    echo "# example: run the job script command line:"
+    echo "# sbatch pokemon.job"
+
+%apphelp colors
+    Generate your pokemon analysis with beautiful colors!
+    ./jobmaker run colors
+%apprun colors
+    exec scif run main | /usr/games/lolcat
+
+%apphelp fortune
+    Generate your pokemon analysis with a custom fortune for each one!
+    ./jobmaker run fortune
+%apprun fortune
+    wisdom="$(/usr/games/fortune)"
+    exec pokemon --catch --message "$wisdom"
